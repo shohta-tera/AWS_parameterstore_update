@@ -1,0 +1,31 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Transform: AWS::Serverless-2016-10-31
+Description: Using Parameter Store in Lambda function
+
+Parameters:
+  EnvName:
+    Description: Environment Name
+    Type: String
+    Default: prod
+    AllowedPattern: ^[a-zA-Z0-9\-]*$
+  Phase:
+    Type: String
+    Default: prod
+  LambdaMemorySize:
+    Type: AWS::SSM::Parameter::Value<String>
+  LambdaTimeout:
+    Type: AWS::SSM::Parameter::Value<String>
+
+Resources:
+  CustomerLambdaFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub ${EnvName}-Customer
+      CodeUri: ../src/Customer
+      Handler: test.lambda_handler
+      Runtime: python3.7
+      Policies:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+        - arn:aws:iam::aws:policy/AmazonSSMReadOnlyAccess
+      Timeout: !Ref LambdaTimeout
+      MemorySize: !Ref LambdaMemorySize

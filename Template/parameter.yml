@@ -1,0 +1,25 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Transform: AWS::Serverless-2016-10-31
+Description: Using Parameter Store in Lambda function
+
+Resources:
+  LambdaMemorySize:
+    Type: AWS::SSM::Parameter
+    Properties:
+      AllowedPattern: ^\d+$
+      Description: Lambda Memory Size
+      Name: /Cloud/prod/Customer/LambdaMemorySize
+      Type: String
+      Value: "128"
+      Tags:
+        Environment: prod
+  LambdaTimeout:
+    Type: AWS::SSM::Parameter
+    Properties:
+      AllowedPattern: ^\d+$
+      Description: Lambda Timeout
+      Name: /Cloud/prod/Customer/LambdaTimeout
+      Type: String
+      Value: "120"
+      Tags:
+        Environment: prod

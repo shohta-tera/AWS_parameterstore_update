@@ -11,7 +11,12 @@ from aws_xray_sdk.core import patch
 patch(["boto3"])
 
 log = getLogger(__name__)
-teams_url = ""
+ssm = boto3.client("ssm")
+response = ssm.get_parameter(
+    Name="webhookURL",
+    WithDecryption=True
+)
+teams_url = response["Parameter"]["Value"]
 cfnclient = boto3.client("cloudformation")
 snsclient = boto3.client("sns")
 aws_region = boto3.session.Session().region_name
@@ -22,7 +27,7 @@ topic_arn = (
     + ":"
     + account_id
     + ":"
-    + os.eniron["ENV_NAME"]
+    + os.environ["ENV_NAME"]
     + "-CFn-Update-Notification"
 )
 

@@ -1,5 +1,5 @@
 AWSCLI := $(shell /usr/bin/which aws)
-ACCOUNTID := $(shell $(AWSCLI) sts get-caller-identity | grep Account | aws '{print $2}' | sed 's/[^0-9]//g')
+ACCOUNTID := `$(AWSCLI) sts get-caller-identity --query 'Account' --output text`
 PIP := $(shell /usr/bin/which pip)
 
 APP_NAME = ParamterStore
@@ -7,6 +7,7 @@ APP_NAME = ParamterStore
 STACKNAME := $(ENV_NAME)-$(APP_NAME)-stack
 UPDATESYSTEMNAME := $(ENV_NAME)-Update-CFn-stack
 BUCKET_NAME := ci-$(ACCOUNTID)-deploy
+TESTSTACKNAME := $(ENV_NAME)-Customer-stack
 
 ifeq ($(PHASE),)
 	PHASE = prod
@@ -14,8 +15,6 @@ else
 	PHASE = $(PHASE)
 endif
 
-.PHONY: help
-.DEFAULT_GOAL := help
 
 lib.update:
 	@$(PIP) install awscli==1.16.289 aws-sam-cli==0.35.0
@@ -24,8 +23,9 @@ deploy:
 	@echo "ENV_NAME: $(ENV_NAME)"
 	@echo "PHASE: $(PHASE)"
 	@echo "Deploy parameter store"; \
-	make cfn.package; \
-	make cfn.deploy;
+	make deploy.secure_string; \
+	make param.package; \
+	make param.deploy;
 	@echo "Deploy complete"
 
 undeploy:
@@ -33,43 +33,82 @@ undeploy:
 	@make cfn.sam.undeploy
 
 create.layer:
-	@$(shelll mkdir python)
-	@$(PIP) install -r requirementes.txt -t ./python
-	@zip -r paramterstore-stack-python.zip ./python
+	@$(shell mkdir python)
+	@$(PIP) install -r requirements.txt -t ./python
+	@zip -r parameterstore-stack-python.zip ./python
 
-cfn.package:
+param.package:
 	@$(AWSCLI) \
 		cloudformation package \
-			--template-file paramter.yml
-			--output-template-file package.yml \
+			--template-file Template/parameter.yml \
+			--output-template-file Template/package.yml \
 			--s3-bucket $(BUCKET_NAME)
 
-cfn.deploy:
+param.deploy:
 	@$(AWSCLI) \
 		cloudformation deploy \
-			--template-file package.yml \
+			--template-file Template/package.yml \
 			--stack-name $(STACKNAME) \
 			--capabilities CAPABILITY_NAMED_IAM \
 			--no-fail-on-empty-changeset \
 			--parameter-overrides EnvName=$(ENV_NAME) Phase=$(PHASE)
 	@$(AWSCLI) cloudformation describe-stacks --stack-name $(STACKNAME)
 
-cfn.undeploy:
+param.undeploy:
 	@$(AWSCLI) \
 		cloudfomation delete-stack --stack-name $(STACKNAME)
 	@$(AAWSCLI) cloudformation wait stack-delete-complete --stack-name $(STACKNAME)
 
 sam.package:
-	@make create.layer
-	@sam package --template-file template.yml --output-template-file package-lambda.yml --s3-bucket (BUCKET_NAME) --region ap-northeast-1
+	#@make create.layer
+	@sam package --template-file Template/template.yml \
+		--output-template-file Template/package-lambda.yml \
+		--s3-bucket $(BUCKET_NAME) \
+		--region ap-northeast-1
 
 sam.deploy:
-	@sam deploy --template-file package-lambda.yml --stak-name $(UPDATESYSTEMNAME) \
+	@sam deploy --template-file Template/package-lambda.yml \
+		--stack-name $(UPDATESYSTEMNAME) \
 		--capabilities CAPABILITY_NAMED_IAM \
 		--s3-bucket $(BUCKET_NAME) \
 		--region ap-northeast-1 \
-		--parameter-overrides EnvName=$(ENV_NAME) Phase=$(PHASE) NotifyEmail=""
+		--parameter-overrides EnvName=$(ENV_NAME) Phase=$(PHASE) NotifyEmail=$(NotifyEmail)
 
 sam.undeploy:
 	@$(AWSCLI) cloudformation delete-stack --stack-name $(UPDATESYSTEMNAME)
 	@$(AWSCLI) cloudformation wait stack-delete-complete --stack-name $(UPDATESYSTEMNAME)
+
+deploy.secure_string:
+	@$(AWSCLI) ssm put-parameter \
+		--name webhookURL \
+		--value ${WEBHOOKURL} \
+		--type SecureString \
+		--overwrite
+
+create.bucket:
+	@echo $(ACCOUNTID)
+	@$(AWSCLI) s3 mb s3://ci-$(ACCOUNTID)-deploy
+
+test.package:
+	@$(AWSCLI) \
+		cloudformation package \
+			--template-file Template/test-template.yml \
+			--output-template-file Template/test-package.yml \
+			--s3-bucket $(BUCKET_NAME)
+
+test.deploy:
+	@$(AWSCLI) \
+		cloudformation deploy \
+			--template-file Template/test-package.yml \
+			--stack-name $(TESTSTACKNAME) \
+			--capabilities CAPABILITY_NAMED_IAM \
+			--no-fail-on-empty-changeset \
+			--parameter-overrides EnvName=$(ENV_NAME) Phase=$(PHASE) \
+				LambdaMemorySize=/Cloud/$(PHASE)/Customer/LambdaMemorySize \
+    			LambdaTimeout=/Cloud/$(PHASE)/Customer/LambdaTimeout
+	@$(AWSCLI) cloudformation describe-stacks --stack-name $(TESTSTACKNAME)
+
+test.undeploy:
+	@$(AWSCLI) \
+		cloudfomation delete-stack --stack-name $(TESTSTACKNAME)
+	@$(AAWSCLI) cloudformation wait stack-delete-complete --stack-name $(TESTSTACKNAME)

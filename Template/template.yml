@@ -20,6 +20,7 @@ Parameters:
   NotifyEmail:
     Description: Notification Email Address
     Type: String
+    NoEcho: True
 
 Globals:
   Function:
@@ -38,7 +39,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       Description: Receive Messages from Parameter Store Changing Evnet and thorow CFn Update Order
-      CodeUri: src/python
+      CodeUri: ../src/python
       Handler: receivemessage.lambda_handler
       FunctionName: !Sub ${EnvName}-ReceiveSqsMessages
       MemorySize: 128
@@ -51,7 +52,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       Description: Execute CFn Update Order and Check Status
-      CodeUri: src/python
+      CodeUri: ../src/python
       Handler: executecfnupdate.lambda_handler
       FunctionName: !Sub ${EnvName}-CFn-Update-Executor
       MemorySize: 128
@@ -63,7 +64,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       Description: Check CFn Status retry
-      CodeUri: src/python
+      CodeUri: ../src/python
       Handler: checkcfnstatus.lambda_handler
       FunctionName: !Sub ${EnvName}-CFn-Update-Checker
       MemorySize: 128
@@ -75,7 +76,7 @@ Resources:
     Type: AWS::Serverless::LayerVersion
     Properties:
       Description: python base module for parameter store stack
-      ContentUri: paramterstore-stack-python.zip
+      ContentUri: ../parameterstore-stack-python.zip
   SqsPollingLambdaTrigger:
     Type: AWS::Events::Rule
     Properties:
@@ -93,7 +94,7 @@ Resources:
     Properties:
       Action: lambda:InvokeFunction
       FunctionName: !Ref GetQueueThrowOrderLambda
-      Principal: events.amazonws.com
+      Principal: events.amazonaws.com
       SourceArn: !GetAtt
         - SqsPollingLambdaTrigger
         - Arn
@@ -116,8 +117,9 @@ Resources:
         Version: "2012-10-17"
         Statement:
           - Effect: Allow
-            Pricipal:
-              Service: lambda.amazonaws.com
+            Principal:
+              Service:
+                - lambda.amazonaws.com
             Action: sts:AssumeRole
       Path: /
       MaxSessionDuration: 3600
@@ -138,16 +140,17 @@ Resources:
                   - cloudformation:UpdateStack
                 Resource: "*"
               - Effect: Allow
-                Action: lambda:InvokeFunction
+                Action:
+                  - lambda:InvokeFunction
                 Resource:
-                  - !Sub arn:aws:lambda:${AWS::Region};${AWS::AccountId}:function:${EnvName}-ReceiveSqsMessages
-                  - !Sub arn:aws:lambda:${AWS::Region};${AWS::AccountId}:function:${EnvName}-CFn-Update-Executer
-                  - !Sub arn:aws:lambda:${AWS::Region};${AWS::AccountId}:function:${EnvName}-CFnUpdate-Checker
+                  - !Sub arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${EnvName}-ReceiveSqsMessages
+                  - !Sub arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${EnvName}-CFn-Update-Executer
+                  - !Sub arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${EnvName}-CFn-Update-Checker
               - Effect: Allow
                 Action:
                   - sns:Publish
                 Resource:
-                  - !Sub arn:aws::sns:${AWS::Region}:${AWS::AccountId}:${EnvName}-CFn-Update-Notification
+                  - !Sub arn:aws:sns:${AWS::Region}:${AWS::AccountId}:${EnvName}-CFn-Update-Notification
               - Effect: Allow
                 Action:
                   - sqs:DeleteMessage
@@ -215,7 +218,7 @@ Resources:
         - Endpoint: !Ref NotifyEmail
           Protocol: email
       TopicName: !Sub ${EnvName}-CFn-Update-Notification
-  
+
   ParameterStoreChangeTopicPolicy:
     Type: AWS::SNS::TopicPolicy
     Properties:
@@ -229,7 +232,7 @@ Resources:
             Resource: !Ref ParameterStoreChangeTopic
             Principal:
               "Service": "events.amazonaws.com"
-  
+
   ChangeStackNotificationPolicy:
     Type: AWS::SNS::TopicPolicy
     Properties:
@@ -240,10 +243,10 @@ Resources:
         Statement:
           - Effect: Allow
             Action: sns:Publish
-            Resource: !Reff CFnUpdateNotifyTopic
+            Resource: !Ref CFnUpdateNotifyTopic
             Principal:
               "Service": "events.amazonaws.com"
-  
+
   ParamterStoreChangeEvents:
     Type: AWS::Events::Rule
     Properties:
@@ -260,5 +263,5 @@ Resources:
             InputPathsMap:
               Name: $.detail.name
               Ope: $.detail.operation
-            InputTemplate: "\"<Name> is <Ope>ed\""
+            InputTemplate: '"<Name> is <Ope>ed"'
           Id: !Sub ${EnvName}-changed-events-${AWS::AccountId}
