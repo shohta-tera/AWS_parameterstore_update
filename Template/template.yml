@@ -39,7 +39,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       Description: Receive Messages from Parameter Store Changing Evnet and thorow CFn Update Order
-      CodeUri: ../src/python
+      CodeUri: ../src/CFnUpdate
       Handler: receivemessage.lambda_handler
       FunctionName: !Sub ${EnvName}-ReceiveSqsMessages
       MemorySize: 128
@@ -52,7 +52,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       Description: Execute CFn Update Order and Check Status
-      CodeUri: ../src/python
+      CodeUri: ../src/CFnUpdate
       Handler: executecfnupdate.lambda_handler
       FunctionName: !Sub ${EnvName}-CFn-Update-Executor
       MemorySize: 128
@@ -64,7 +64,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       Description: Check CFn Status retry
-      CodeUri: ../src/python
+      CodeUri: ../src/CFnUpdate
       Handler: checkcfnstatus.lambda_handler
       FunctionName: !Sub ${EnvName}-CFn-Update-Checker
       MemorySize: 128
