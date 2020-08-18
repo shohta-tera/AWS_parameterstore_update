@@ -60,7 +60,7 @@ param.undeploy:
 	@$(AAWSCLI) cloudformation wait stack-delete-complete --stack-name $(STACKNAME)
 
 sam.package:
-	#@make create.layer
+	@make create.layer
 	@sam package --template-file Template/template.yml \
 		--output-template-file Template/package-lambda.yml \
 		--s3-bucket $(BUCKET_NAME) \
