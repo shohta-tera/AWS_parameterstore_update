@@ -65,7 +65,7 @@ Resources:
     Properties:
       Description: Check CFn Status retry
       CodeUri: ../src/CFnUpdate
-      Handler: checkcfnstatus.lambda_handler
+      Handler: checkupdatestatus.lambda_handler
       FunctionName: !Sub ${EnvName}-CFn-Update-Checker
       MemorySize: 128
       Tracing: Active
