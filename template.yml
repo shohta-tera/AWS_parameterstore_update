@@ -1,0 +1,264 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Transform: AWS::Serverless-2016-10-31
+Description: Automate changing stack by changed parameter store
+
+Parameters:
+  EnvName:
+    Description: Environment Name
+    Type: String
+    Default: prod
+    AllowedPattern: ^[a-zA-Z0-9\-]*$
+  Phase:
+    Type: String
+    Default: prod
+  LogLevel:
+    Type: String
+    Default: INFO
+    AllowedValues:
+      - INFO
+      - DEBUG
+  NotifyEmail:
+    Description: Notification Email Address
+    Type: String
+
+Globals:
+  Function:
+    Runtime: python3.7
+    Timeout: 900
+    Layers:
+      - !Ref PythonModuleBaseLayers
+    Environment:
+      Variables:
+        ENV_NAME: !Ref EnvName
+        Phase: !Ref Phase
+        LogLevel: !Ref LogLevel
+
+Resources:
+  GetQueueThrowOrderLambda:
+    Type: AWS::Serverless::Function
+    Properties:
+      Description: Receive Messages from Parameter Store Changing Evnet and thorow CFn Update Order
+      CodeUri: src/python
+      Handler: receivemessage.lambda_handler
+      FunctionName: !Sub ${EnvName}-ReceiveSqsMessages
+      MemorySize: 128
+      Timeout: 180
+      Tracing: Active
+      Role: !GetAtt
+        - AutomateCFnUpdateFunctionRole
+        - Arn
+  CFnUpdateExecuterLambda:
+    Type: AWS::Serverless::Function
+    Properties:
+      Description: Execute CFn Update Order and Check Status
+      CodeUri: src/python
+      Handler: executecfnupdate.lambda_handler
+      FunctionName: !Sub ${EnvName}-CFn-Update-Executor
+      MemorySize: 128
+      Tracing: Active
+      Role: !GetAtt
+        - AutomateCFnUpdateFunctionRole
+        - Arn
+  CFnUpdateCheckLambda:
+    Type: AWS::Serverless::Function
+    Properties:
+      Description: Check CFn Status retry
+      CodeUri: src/python
+      Handler: checkcfnstatus.lambda_handler
+      FunctionName: !Sub ${EnvName}-CFn-Update-Checker
+      MemorySize: 128
+      Tracing: Active
+      Role: !GetAtt
+        - AutomateCFnUpdateFunctionRole
+        - Arn
+  PythonModuleBaseLayers:
+    Type: AWS::Serverless::LayerVersion
+    Properties:
+      Description: python base module for parameter store stack
+      ContentUri: paramterstore-stack-python.zip
+  SqsPollingLambdaTrigger:
+    Type: AWS::Events::Rule
+    Properties:
+      Name: !Sub ${EnvName}-SqsPollingLambdaTrigger
+      Description: "Cron Job Get Message From SQS"
+      ScheduleExpression: cron(0/10 * * * ? *)
+      State: DISABLED
+      Targets:
+        - Arn: !GetAtt
+            - GetQueueThrowOrderLambda
+            - Arn
+          Id: CronJobForLambda
+  PermissionForEventsToInvokeLambda:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref GetQueueThrowOrderLambda
+      Principal: events.amazonws.com
+      SourceArn: !GetAtt
+        - SqsPollingLambdaTrigger
+        - Arn
+  EventInvokeConfigOnCfnLambda:
+    Type: AWS::Lambda::EventInvokeConfig
+    Properties:
+      FunctionName: !Ref CFnUpdateExecuterLambda
+      Qualifier: "$LATEST"
+      MaximumRetryAttempts: 0
+      DestinationConfig:
+        OnFailure:
+          Destination: !GetAtt
+            - CFnUpdateCheckLambda
+            - Arn
+  AutomateCFnUpdateFunctionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub ${EnvName}-AutomateCFnUpdateFunctionRole
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Pricipal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      Path: /
+      MaxSessionDuration: 3600
+      Policies:
+        - PolicyName: !Sub ${EnvName}-AutomateCFnUpdateFunctionPolicy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                  - logs:CreateLogGroup
+                Resource: "*"
+              - Effect: Allow
+                Action:
+                  - cloudformation:DescribeStacks
+                  - cloudformation:UpdateStack
+                Resource: "*"
+              - Effect: Allow
+                Action: lambda:InvokeFunction
+                Resource:
+                  - !Sub arn:aws:lambda:${AWS::Region};${AWS::AccountId}:function:${EnvName}-ReceiveSqsMessages
+                  - !Sub arn:aws:lambda:${AWS::Region};${AWS::AccountId}:function:${EnvName}-CFn-Update-Executer
+                  - !Sub arn:aws:lambda:${AWS::Region};${AWS::AccountId}:function:${EnvName}-CFnUpdate-Checker
+              - Effect: Allow
+                Action:
+                  - sns:Publish
+                Resource:
+                  - !Sub arn:aws::sns:${AWS::Region}:${AWS::AccountId}:${EnvName}-CFn-Update-Notification
+              - Effect: Allow
+                Action:
+                  - sqs:DeleteMessage
+                  - sqs:ReceiveMessage
+                Resource:
+                  - !Sub arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:${EnvName}-InvokeChangeLmabdaQueue
+              - Effect: Allow
+                Action:
+                  - ssm:DescribeParameters
+                Resource:
+                  - !Sub arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/*
+              - Effect: Allow
+                Resource: "*"
+                Action:
+                  - iam:PassRole
+                  - lambda:UpdateFunctionConiguration
+                  - lambda:ListTags
+                  - lambda:UntagResource
+                  - kinesis:UpdateShardCount
+                  - autoscaling:UpdateAutoScalingGroup
+                  - ecs:UpdaateService
+                  - ecs:UpdateTaskSet
+                  - elasticache:ModifyReplicationGroupShardCOnfiguration
+                  - elasticache:ModifyCacheCluster
+                  - ec2:CreateNetworkInterface
+                  - ec2:DeleteNetworkInterface
+                  - ec2:DescribeNetworkInterfaces
+                  - ec2:DescribeSubnets
+                  - ec2:DescribeVpcs
+                  - xray:PutTelemetryRecords
+                  - xray:PutTraceSegments
+  InvokeChangeLambdaQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      VisibilityTimeout: 1000
+      MessageRetentionPeriod: 3600
+      QueueName: !Sub ${EnvName}-InvokeChangeLambdaQueue
+
+  SQSPolicy:
+    Type: AWS::SQS::QueuePolicy
+    Properties:
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          Effect: Allow
+          Principal: "*"
+          Action: sqs:*
+          Resource: "*"
+      Queues:
+        - !Ref InvokeChangeLambdaQueue
+  ParameterStoreChangeTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      Subscription:
+        - Endpoint: !GetAtt
+            - InvokeChangeLambdaQueue
+            - Arn
+          Protocol: sqs
+      TopicName: !Sub ${EnvName}-Changing-Parameter-Store
+
+  CFnUpdateNotifyTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      Subscription:
+        - Endpoint: !Ref NotifyEmail
+          Protocol: email
+      TopicName: !Sub ${EnvName}-CFn-Update-Notification
+  
+  ParameterStoreChangeTopicPolicy:
+    Type: AWS::SNS::TopicPolicy
+    Properties:
+      Topics:
+        - !Ref ParameterStoreChangeTopic
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Action: sns:Publish
+            Resource: !Ref ParameterStoreChangeTopic
+            Principal:
+              "Service": "events.amazonaws.com"
+  
+  ChangeStackNotificationPolicy:
+    Type: AWS::SNS::TopicPolicy
+    Properties:
+      Topics:
+        - !Ref CFnUpdateNotifyTopic
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Action: sns:Publish
+            Resource: !Reff CFnUpdateNotifyTopic
+            Principal:
+              "Service": "events.amazonaws.com"
+  
+  ParamterStoreChangeEvents:
+    Type: AWS::Events::Rule
+    Properties:
+      Description: "CloudwatchEvents triggered by changing Paramter Store"
+      EventPattern:
+        source:
+          - aws.ssm
+        detail-type:
+          - Parameter Store Change
+      Name: !Sub ${EnvName}-paramterstore-change-event
+      Targets:
+        - Arn: !Ref ParameterStoreChangeTopic
+          InputTransformer:
+            InputPathsMap:
+              Name: $.detail.name
+              Ope: $.detail.operation
+            InputTemplate: "\"<Name> is <Ope>ed\""
+          Id: !Sub ${EnvName}-changed-events-${AWS::AccountId}
