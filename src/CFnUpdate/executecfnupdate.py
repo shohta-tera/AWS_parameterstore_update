@@ -1,6 +1,6 @@
 import boto3
 import botocore
-from loging import getLogger
+from logging import getLogger
 import json
 import requests
 import os
