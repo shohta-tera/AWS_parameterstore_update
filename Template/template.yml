@@ -160,6 +160,7 @@ Resources:
               - Effect: Allow
                 Action:
                   - ssm:DescribeParameters
+                  - ssm:GetParameter
                 Resource:
                   - !Sub arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/*
               - Effect: Allow
