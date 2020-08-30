@@ -48,7 +48,7 @@ Resources:
       Role: !GetAtt
         - AutomateCFnUpdateFunctionRole
         - Arn
-  CFnUpdateExecuterLambda:
+  CFnUpdateExecutorLambda:
     Type: AWS::Serverless::Function
     Properties:
       Description: Execute CFn Update Order and Check Status
@@ -101,7 +101,7 @@ Resources:
   EventInvokeConfigOnCfnLambda:
     Type: AWS::Lambda::EventInvokeConfig
     Properties:
-      FunctionName: !Ref CFnUpdateExecuterLambda
+      FunctionName: !Ref CFnUpdateExecutorLambda
       Qualifier: "$LATEST"
       MaximumRetryAttempts: 0
       DestinationConfig:
@@ -144,7 +144,7 @@ Resources:
                   - lambda:InvokeFunction
                 Resource:
                   - !Sub arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${EnvName}-ReceiveSqsMessages
-                  - !Sub arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${EnvName}-CFn-Update-Executer
+                  - !Sub arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${EnvName}-CFn-Update-Executor
                   - !Sub arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${EnvName}-CFn-Update-Checker
               - Effect: Allow
                 Action:
