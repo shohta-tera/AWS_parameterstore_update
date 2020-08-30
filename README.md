@@ -42,3 +42,5 @@ home
 - WEBHOOKURL
   - サンプルでは、slack, Teams などの WebHookURL をパラメータストアのセキュアストリングに格納します。
   - 特定の物がなければ、単に文字列でも大丈夫です。
+- NotifyEmail
+  - 通知用のメールアドレス
