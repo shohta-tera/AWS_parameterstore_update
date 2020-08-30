@@ -30,7 +30,7 @@ def app_push_tag_from_queue(event, context):
         for message in msg_list:
             message.delete()
         if len(msg_list) != 0:
-            delete_list[len(delete_list) : len(delete_list)] = msg_list
+            delete_list[len(delete_list): len(delete_list)] = msg_list
             process_count = 0
         else:
             process_count += 1
@@ -45,7 +45,7 @@ def app_push_tag_from_queue(event, context):
     log.info("Update Service: ", change_services)
     for change_service in change_services:
         client_lambda.invoke(
-            FunctionName=os.environ["ENV_NAME"] + "-CFn-Update-Executer",
+            FunctionName=os.environ["ENV_NAME"] + "-CFn-Update-Executor",
             InvocationType="Event",
             Payload=json.dumps({"Service": change_service}),
         )
