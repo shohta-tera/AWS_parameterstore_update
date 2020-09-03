@@ -37,7 +37,7 @@ def app_push_tag_from_queue(event, context):
     for message in delete_list:
         notify_msg = json.loads(message.body)["Message"]
         msg_only = notify_msg.split("/")
-        if msg_only[2] == "prod":
+        if msg_only[2] == os.environ["ENV_NAME"]:
             service_list.append(msg_only[3])
 
     # remove dupulicate service list
