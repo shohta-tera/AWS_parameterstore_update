@@ -160,6 +160,7 @@ Resources:
               - Effect: Allow
                 Action:
                   - ssm:DescribeParameters
+                  - ssm:GetParameters
                   - ssm:GetParameter
                 Resource:
                   - !Sub arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/*
@@ -167,7 +168,10 @@ Resources:
                 Resource: "*"
                 Action:
                   - iam:PassRole
-                  - lambda:UpdateFunctionConiguration
+                  - iam:GetRole
+                  - ssm:GetParameters
+                  - ssm:GetParameter
+                  - lambda:UpdateFunctionConfiguration
                   - lambda:ListTags
                   - lambda:UntagResource
                   - kinesis:UpdateShardCount

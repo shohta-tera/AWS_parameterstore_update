@@ -22,7 +22,7 @@ response = ssm.get_parameter(
 teams_url = response["Parameter"]["Value"]
 snsclinet = boto3.client("sns")
 aws_region = boto3.session.Session().region_name
-account_id = boto3.client("sts").get_caller_identiry().get("Account")
+account_id = boto3.client("sts").get_caller_identity().get("Account")
 topic_arn = (
     "arn:aws:sns:"
     + aws_region
@@ -39,7 +39,7 @@ def execute_upate_stack(event, context):
     response = cfnclient.describe_stacks(
         StackName=f"prod-{change_service}-stack")
     key_list = [key["ParameterKey"]
-                for key in response["Stacks"][0]["Parameter"]]
+                for key in response["Stacks"][0]["Parameters"]]
     parameter_list = [
         {"ParameterKey": f"{key}", "UsePreviousValue": True} for key in key_list
     ]
@@ -47,7 +47,7 @@ def execute_upate_stack(event, context):
     response = cfnclient.update_stack(
         StackName=f"prod-{change_service}-stack",
         UsePreviousTemplate=True,
-        Paramters=parameter_list,
+        Parameters=parameter_list,
         Capabilities=["CAPABILITY_NAMED_IAM"],
     )
     log.info(f"Changed {change_service} Service.")
